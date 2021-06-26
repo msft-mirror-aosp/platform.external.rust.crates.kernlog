@@ -46,7 +46,7 @@ extern crate log;
 extern crate libc;
 
 use std::fs::{OpenOptions, File};
-use std::io::{Write, self};
+use std::io::{Error, ErrorKind, Write, self};
 use std::sync::Mutex;
 use std::env;
 
@@ -75,10 +75,28 @@ impl KernelLog {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
+    fn open_kmsg() -> io::Result<File> {
+        OpenOptions::new().write(true).open("/dev/kmsg")
+    }
+
+    #[cfg(target_os = "android")]
+    fn open_kmsg() -> io::Result<File> {
+        // In Android, a process normally doesn't have the permission to open /dev/kmsg. Instead it
+        // is opened by init (via `file /dev/kmsg w` in the rc file) and the file descriptor is
+        // shared when executing the process. The file descriptor number is passed via an
+        // environment variable "ANDROID_FILE_<file_name>" where <file_name> is the path to the
+        // file where non alpha-numeric characters are replaced with '_'.
+        match env::var("ANDROID_FILE__dev_kmsg") {
+            Ok(val) => OpenOptions::new().write(true).open(format!("/proc/self/fd/{}", val)),
+            Err(e) => Err(Error::new(ErrorKind::Other, "ANDROID_FILE__dev_kmsg doesn't exist")),
+        }
+    }
+
     /// Create new kernel logger with error level filter
     pub fn with_level(filter: LevelFilter) -> io::Result<KernelLog> {
         Ok(KernelLog {
-            kmsg: Mutex::new(OpenOptions::new().write(true).open("/dev/kmsg")?),
+            kmsg: Mutex::new(Self::open_kmsg()?),
             maxlevel: filter
         })
     }
