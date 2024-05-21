@@ -26,7 +26,7 @@ rust_library {
     crate_name: "kernlog",
     cargo_env_compat: true,
     cargo_pkg_version: "0.3.1",
-    srcs: ["src/lib.rs"],
+    crate_root: "src/lib.rs",
     edition: "2018",
     rustlibs: [
         "liblibc",
